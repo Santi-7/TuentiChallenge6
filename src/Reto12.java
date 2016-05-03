@@ -1,6 +1,8 @@
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Scanner;
 
 /**
@@ -24,10 +26,14 @@ public class Reto12 {
 		City initial = constructSpreadVirus(scan, cities);
 		// Then, compare it with the rest of the viruses.
 		short viruses = scan.nextShort(); scan.nextLine();
+		// To write in output file.
+		File output = new File("[Ch.12]testOutput.txt");
+		output.createNewFile();
+		PrintWriter pw = new PrintWriter(output);
 		for (short i = 1; i <= viruses; i++) {
 			// Construct the spread-tree of each virus.
 			City origin = constructSpreadVirus(scan, cities);
-			ArrayList<String> relation = initial.isEquivalent(origin);
+			ArrayList<String> relation = areVirusEquivalent(initial, origin);
 			String relations;
 			// If relation is null, print NO.
 			if (relation == null) relations = "NO";
@@ -40,7 +46,7 @@ public class Reto12 {
 				 * to can realize more challenges. */
 				relations = getPrintOrdered(relation);
 			}
-			System.out.println("Case #" + i + ": " + relations);
+			pw.println("Case #" + i + ": " + relations);
 		}
 		scan.close();
 	}
@@ -62,6 +68,45 @@ public class Reto12 {
 			scan.nextLine();
 		}
 		return initial;
+	}
+	
+	/**
+	 * Returns null if virus are not equivalent or a list with the relations
+	 * of the cities if virus spread the same manner.
+	 * @param a - City where first virus began.
+	 * @param b - City where second virus began.
+	 * @return null if virus are not equivalent or a list with the relations
+	 * of the cities if virus spread the same manner.
+	 */
+	private static ArrayList<String> areVirusEquivalent(City a, City b) {
+		ArrayList<String> relations = new ArrayList<String>();
+		// For all levels.
+		for (int i = a.getHigh(); i >= 0; i--) {
+			// Cities of the level [i] of virus a.
+			ArrayList<City> citiesA = a.citiesOfLevel(new ArrayList<City>(), i);
+			Collections.sort(citiesA);
+			// Cities of the level [i] of virus b.
+			ArrayList<City> citiesB = b.citiesOfLevel(new ArrayList<City>(), i);
+			Collections.sort(citiesB);
+			// Different number of cities of same level, virus are not equivalent.
+			if (citiesA.size() != citiesB.size()) return null;
+			/// Arrays are ordered, so ai will bi related to bj < bk.
+			for (City cityA : citiesA) {
+				int j;
+				for (j = 0; j < citiesB.size(); j++) {
+					String relation = cityA.isEquivalent(citiesB.get(j));
+					// cityA and cityB are equivalents.
+					if (relation != null) {
+						citiesB.remove(j--);
+						relations.add(relation);
+						break;
+					}
+				}
+				// cityA has not an equivalent, so virus are not equivalent.
+				if (j > citiesB.size()) return null;
+			}
+		}
+		return relations;
 	}
 
 	/**
@@ -89,7 +134,7 @@ public class Reto12 {
 	/**
 	 * This class represents a city.
 	 */
-	private static class City {
+	private static class City implements Comparable<Object> {
 
 		/* Name of the city. */
 		private String name;
@@ -134,55 +179,52 @@ public class Reto12 {
 		}
 
 		/**
-		 * Overrides compareTo with the name of the city.
-		 * @param city to compare.
+		 * Returns all the cities with [level] jumps from this city.
+		 * @param level jumps from this city.
+		 * @return all the cities with [level] jumps from this city.
 		 */
-		private int compareTo(String city) {
-			return name.compareTo(city);
+		public ArrayList<City> citiesOfLevel(ArrayList<City> cities, int level) {
+			// Level reached, add the city.
+			if (level == 0) {
+				cities.add(this);
+			// Go deeper.
+			} else {
+				for (City child : infected) {
+					cities.addAll(child.citiesOfLevel(new ArrayList<City>(), level-1));
+				}
+			}
+			return cities;
 		}
 
 		/**
 		 * Returns null if the virus originated in the city
 		 * is not equivalent to the virus originated in
-		 * the city [city], or the list as specified in the
-		 * challenge if it is equivalent.
+		 * the city [city], or a string that indicates the
+		 * cities are equivalent.
 		 * 
-		 * @param city origin of the virus to compare.
-		 * @return null if the virus originated in the city
+		 * @param null if the virus originated in the city
 		 * is not equivalent to the virus originated in
-		 * the city [city], or the list as specified in the
-		 * challenge if it is equivalent.
+		 * the city [city], or a string that indicates the
+		 * cities are equivalent.
 		 */
-		private ArrayList<String> isEquivalent(City city) {
-			/* Comparisons of the cities are made linearly. They could
-			 * be done in log(size(relations)) by a binary search,
-			 * but it is not the objective of the challenge. */
-			ArrayList<String> relations = null;
+		public String isEquivalent(City city) {
+			// Relation of the city with [city].
+			String relation = null;
 			// Infected cities from [city].
 			ArrayList<City> cityInfections = city.getInfected();
 			// They have same number of infected cities.
 			if (infected.size() == cityInfections.size()) {
-				relations = new ArrayList<String>();
 				for (City child : infected) {
-					//System.out.println(child.getName());
 					// Mark if a child from city is equivalent
 					// to a child from this (value true).
 					boolean encounteredEquivalent = false;
 					short i = 0;
-					/* If a city with the original virus (ai) has more than
-					 * one equivalent from the cities with another virus (bj and
-					 * bk where bj < bk), it will be related to the first city
-					 * according to alphabetical order: (ai/bj):
-					 * DONE because ArrayList is ordered.
-					 */
 					while (i < cityInfections.size() && !encounteredEquivalent) {
 						City c = cityInfections.get(i);
-						ArrayList<String> relatChild = child.isEquivalent(c);
 						// [child] is equivalent to [c].
-						if (relatChild != null) {
+						if (child.isEquivalent(c) != null) {
 							encounteredEquivalent = true;
 							cityInfections.remove(i);
-							relations.addAll(relatChild);
 						}
 						i++;
 					}
@@ -193,9 +235,25 @@ public class Reto12 {
 					}
 				}
 				// Each child has an equivalent, so this is equivalent to [city].
-				relations.add(name + "/" + city.getName());
+				relation = name + "/" + city.getName();
 			}
-			return relations;
+			return relation;
+		}
+
+		/**
+		 * Rerturns the high of the spread-tree.
+		 * @return the high of the spread-tree.
+		 */
+		public int getHigh() {
+			return getHighRec(0);
+		}
+
+		public int getHighRec(int current) {
+			int maxChild = 0;
+			for (City child: infected) {
+				maxChild = Math.max(maxChild, child.getHighRec(current+1));
+			}
+			return Math.max(current, maxChild);
 		}
 
 		/**
@@ -224,6 +282,24 @@ public class Reto12 {
 				s += child.toString();
 			}
 			return s;
+		}
+
+		/**
+		 * Overrides compareTo with the name of the city.
+		 * @param city to compare.
+		 */
+		private int compareTo(String city) {
+			return name.compareTo(city);
+		}
+
+		/**
+		 * Overrides compareTo with the the city.
+		 * @param city to compare.
+		 */
+		@Override
+		public int compareTo(Object city) {
+			if (city == null) return 1;
+			return name.compareTo(((City) city).getName());
 		}
 	}
 }
