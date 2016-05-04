@@ -42,11 +42,12 @@ public class Reto9 {
 	 * Returns the smallest multiple of [number] which has only digits 1.
 	 * Note: Although input can be 2^31 and MAX_VALUE is 2^31-1,
 	 * 2^31 is multiple of 2 and has been reduced before this call.
+	 * Note2: But needs long, because the operation [number] * 9.
 	 * 
 	 * @param number to return its smallest multiple.
 	 * @return the smallest multiple of [number] which has only digits 1.
 	 */
-	private static int minNumOnes(int number) {
+	private static int minNumOnes(long number) {
 		if (number == 1) return 1;
 		/*
 		 * Notation: '|' divides.
